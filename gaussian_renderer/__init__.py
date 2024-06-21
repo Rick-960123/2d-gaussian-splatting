@@ -11,6 +11,9 @@
 
 import torch
 import math
+import sys
+sys.path.insert(0, "submodules/diff-surfel-rasterization")
+
 from diff_surfel_rasterization import GaussianRasterizationSettings, GaussianRasterizer
 from scene.gaussian_model import GaussianModel
 from utils.sh_utils import eval_sh
