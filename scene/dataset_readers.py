@@ -242,6 +242,45 @@ def read_custom_intrinsics_text(path):
                                             params=params)
     return cameras
 
+def readCustomCameras(cam_extrinsics, cam_intrinsics, images_folder):
+    cam_infos = []
+    for idx, key in enumerate(cam_extrinsics):
+        sys.stdout.write('\r')
+        # the exact output you're looking for:
+        sys.stdout.write("Reading camera {}/{}".format(idx+1, len(cam_extrinsics)))
+        sys.stdout.flush()
+
+        extr = cam_extrinsics[key]
+        intr = cam_intrinsics[extr.camera_id]
+        height = intr.height
+        width = intr.width
+
+        uid = intr.id
+        R = qvec2rotmat(extr.qvec)
+        T = -1*R.transpose()@np.array(extr.tvec)
+
+        if intr.model=="SIMPLE_PINHOLE":
+            focal_length_x = intr.params[0]
+            FovY = focal2fov(focal_length_x, height)
+            FovX = focal2fov(focal_length_x, width)
+        elif intr.model=="PINHOLE":
+            focal_length_x = intr.params[0]
+            focal_length_y = intr.params[1]
+            FovY = focal2fov(focal_length_y, height)
+            FovX = focal2fov(focal_length_x, width)
+        else:
+            assert False, "Colmap camera model not handled: only undistorted datasets (PINHOLE or SIMPLE_PINHOLE cameras) supported!"
+
+        image_path = os.path.join(images_folder, os.path.basename(extr.name))
+        image_name = os.path.basename(image_path).split(".")[0]
+        image = Image.open(image_path)
+
+        cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
+                              image_path=image_path, image_name=image_name, width=width, height=height)
+        cam_infos.append(cam_info)
+    sys.stdout.write('\n')
+    return cam_infos
+
 def readCustomSceneInfo(path, images, eval, llffhold=8):
     poses, colors, depths, _ = TUMDataset(path).load_poses()
     images_dir = os.path.join(path, "rgb")
@@ -257,7 +296,7 @@ def readCustomSceneInfo(path, images, eval, llffhold=8):
 
         p, c, d = poses[idx], colors[idx], depths[idx]
         image_id = int(float(c.split("/")[-1].rsplit(".", 1)[0])*1000)
-        qvec = p[3:]
+        qvec = [p[-1] , *p[3:6]]
         tvec = p[0:3]
         camera_id = 0
         image_name = c.split("/")[-1]
@@ -266,7 +305,7 @@ def readCustomSceneInfo(path, images, eval, llffhold=8):
                     camera_id=camera_id, name=image_name, xys=[], point3D_ids=[])
         
     
-    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, images_dir))
+    cam_infos_unsorted = readCustomCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, images_dir))
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
 
     if eval:
