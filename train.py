@@ -28,6 +28,46 @@ try:
 except ImportError:
     TENSORBOARD_FOUND = False
 
+import cv2
+import numpy as np
+
+def save_image_local(ori_image,save_path):
+    cv_image=cv2.cvtColor(ori_image.permute(1,2,0).cpu().detach().numpy()*255.0,cv2.COLOR_RGB2BGR)
+    cv2.imwrite(save_path,cv_image)
+
+def render_python(viewpoint_cam, gaussians):
+    height = viewpoint_cam.image_height
+    width = viewpoint_cam.image_width
+    Fx = viewpoint_cam.fx * width
+    Fy = viewpoint_cam.fy * height
+    Cx = viewpoint_cam.cx * width
+    Cy = viewpoint_cam.cy * height
+    R, t = viewpoint_cam.R, viewpoint_cam.T
+
+    TR = np.eye(4)
+    TR[:3, :3] = R.T
+    TR[:3, 3] = t
+
+    image = torch.zeros(height, width, 3, dtype=torch.float32)
+
+    for point in gaussians._xyz:
+        point_cpu = point.detach().cpu().numpy()
+        p_hom = TR[:3, :3]@point_cpu+ TR[:3, 3]
+        
+        if p_hom[2] < 0 :
+            continue
+
+        if(p_hom[2]==0):
+            p_hom[2]=0.000000001
+
+        p_proj = [p_hom[0] * Fx / p_hom[2] + Cx,
+                  p_hom[1] * Fy / p_hom[2] + Cy]
+        if 0 <= p_proj[0] < width and 0 <= p_proj[1] < height:
+            image[int(p_proj[1]), int(p_proj[0]), :] = 1.0
+
+    image = image.permute(2, 0, 1)
+    return image
+
 def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint):
     first_iter = 0
     tb_writer = prepare_output_and_logger(dataset)
@@ -111,6 +151,10 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if iteration == opt.iterations:
                 progress_bar.close()
 
+            if iteration % 1000 == 0:
+                img = render_python(viewpoint_cam, gaussians)
+                save_image_local(img, os.path.join("/home/gaopengwei/2d-gaussian-splatting/output", f"{viewpoint_cam.image_name}.png"))
+                
             # Log and save
             if tb_writer is not None:
                 tb_writer.add_scalar('train_loss_patches/dist_loss', ema_dist_for_log, iteration)

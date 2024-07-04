@@ -32,6 +32,10 @@ class CameraInfo(NamedTuple):
     T: np.array
     FovY: np.array
     FovX: np.array
+    cx: np.array
+    cy: np.array
+    fx: np.array
+    fy: np.array
     image: np.array
     image_path: str
     image_name: str
@@ -94,6 +98,11 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
             focal_length_y = intr.params[1]
             FovY = focal2fov(focal_length_y, height)
             FovX = focal2fov(focal_length_x, width)
+            fx = intr.params[0] / width
+            fy = intr.params[1] / height
+            cx = intr.params[2] / width
+            cy = intr.params[3] / height 
+
         else:
             assert False, "Colmap camera model not handled: only undistorted datasets (PINHOLE or SIMPLE_PINHOLE cameras) supported!"
 
@@ -101,7 +110,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
         image_name = os.path.basename(image_path).split(".")[0]
         image = Image.open(image_path)
 
-        cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
+        cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, fx=fx, fy=fy, cx=cx, cy=cy, image=image,
                               image_path=image_path, image_name=image_name, width=width, height=height)
         cam_infos.append(cam_info)
     sys.stdout.write('\n')
@@ -215,8 +224,12 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
             fovy = focal2fov(fov2focal(fovx, image.size[0]), image.size[1])
             FovY = fovy 
             FovX = fovx
+            fx = 0
+            fy = 0
+            cx = 0
+            cy = 0
 
-            cam_infos.append(CameraInfo(uid=idx, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
+            cam_infos.append(CameraInfo(uid=idx, R=R, T=T, FovY=FovY, FovX=FovX, fx=fx, fy=fy, cx=cx, cy=cy, image=image,
                             image_path=image_path, image_name=image_name, width=image.size[0], height=image.size[1]))
             
     return cam_infos
@@ -266,6 +279,12 @@ def readCustomCameras(cam_extrinsics, cam_intrinsics, images_folder):
         elif intr.model=="PINHOLE":
             focal_length_x = intr.params[0]
             focal_length_y = intr.params[1]
+
+            fx = intr.params[0] / width
+            fy = intr.params[1] / height
+            cx = intr.params[2] / width
+            cy = intr.params[3] / height 
+
             FovY = focal2fov(focal_length_y, height)
             FovX = focal2fov(focal_length_x, width)
         else:
@@ -275,7 +294,7 @@ def readCustomCameras(cam_extrinsics, cam_intrinsics, images_folder):
         image_name = os.path.basename(image_path).rsplit(".", 1)[0]
         image = Image.open(image_path)
 
-        cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
+        cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, fx=fx, fy=fy, cx=cx, cy=cy, image=image,
                               image_path=image_path, image_name=image_name, width=width, height=height)
         cam_infos.append(cam_info)
     sys.stdout.write('\n')
